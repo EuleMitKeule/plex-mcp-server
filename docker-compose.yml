@@ -1,0 +1,17 @@
+
+services:
+  plex-mcp-server:
+    image: ghcr.io/eulemitkeule/plex-mcp-server:latest
+    container_name: plex-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PLEX_URL=<plex_url> # Required for accessing Plex API
+      - PLEX_TOKEN=<plex_token> # Required for accessing Plex API
+      - PERMISSIONS=<permissions> # Optional, default is read, read, write or delete
+      # - PLEX_USERNAME=<plex_username> # Optional, default is empty, used for user related tools
+      # - HOST=<host> # Optional, default is 0.0.0.0
+      # - PORT=<port> # Optional, default is 8000
+      # - TRANSPORT=<transport> # Optional, default is sse, sse or stdio
+      # - DEBUG=<debug> # Optional, default is false

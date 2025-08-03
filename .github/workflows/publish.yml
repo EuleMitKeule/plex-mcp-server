@@ -1,0 +1,113 @@
+name: Publish
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set_output.outputs.version }}
+    env:
+      VERSION: ""
+    steps:
+      - name: Get version from release
+        if: github.event_name == 'release'
+        run: |
+          echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+
+      - name: Get version from API
+        if: github.event_name == 'workflow_dispatch'
+        id: release_api
+        uses: octokit/request-action@v2.x
+        with:
+          route: GET /repos/${{ github.repository }}/releases/latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+
+      - name: Parse API response
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "VERSION=${{ fromJson(steps.release_api.outputs.data).tag_name }}" >> $GITHUB_ENV
+
+      - name: Log version
+        run: |
+          echo "Version: $VERSION"
+
+      - name: Fail if no version
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "No version found"
+            exit 1
+          fi
+
+      - name: Set version output
+        id: set_output
+        run: |
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  docker:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+
+      - name: Get last two release tags
+        id: release_tags
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0)
+          SECOND_LAST_TAG=$(git describe --tags --abbrev=0 $(git rev-list --tags --skip=1 --max-count=1))
+          echo "::set-output name=last_tag::$LAST_TAG"
+          echo "::set-output name=second_last_tag::$SECOND_LAST_TAG"
+
+      - name: Check for changes in specific directory between the last two releases
+        id: check_changes
+        run: |
+          CHANGED=$(git diff --name-only ${{ steps.release_tags.outputs.second_last_tag }} ${{ steps.release_tags.outputs.last_tag }} -- home_automations/)
+          if [ -n "$CHANGED" ]; then
+            echo "Changes detected in home_automations between the last two releases."
+            echo "::set-output name=changed::true"
+          else
+            echo "No changes detected in home_automations between the last two releases."
+            echo "::set-output name=changed::false"
+          fi
+
+      - name: Login
+        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.PAT }}
+
+      - name: Extract metadata
+        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ needs.version.outputs.version }}
+            latest
+
+      - name: Build and publish docker image
+        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

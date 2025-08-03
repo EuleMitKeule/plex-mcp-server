@@ -1,0 +1,19 @@
+[project]
+name = "plex-mcp-server"
+version = "0.0.0"
+description = "MCP Server for Plex Media Server"
+requires-python = ">=3.13"
+authors = [{ name = "Lennard Beers" }]
+license = { file = "LICENSE.md" }
+readme = { file = "README.md", content-type = "text/markdown" }
+dependencies = [
+    "aiohttp>=3.12.15",
+    "async-typer>=0.1.9",
+    "mcp>=1.12.3",
+    "plexapi>=4.17.0",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.4",
+    "starlette>=0.47.2",
+    "typer>=0.16.0",
+    "uvicorn>=0.35.0",
+]

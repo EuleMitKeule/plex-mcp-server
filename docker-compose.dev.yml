@@ -1,0 +1,10 @@
+
+services:
+  plex-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plex-mcp-server
+    env_file: .env
+    ports:
+      - "8000:8000"
