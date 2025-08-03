@@ -62,31 +62,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch tags
-        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-
-      - name: Get last two release tags
-        id: release_tags
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0)
-          SECOND_LAST_TAG=$(git describe --tags --abbrev=0 $(git rev-list --tags --skip=1 --max-count=1))
-          echo "::set-output name=last_tag::$LAST_TAG"
-          echo "::set-output name=second_last_tag::$SECOND_LAST_TAG"
-
-      - name: Check for changes in specific directory between the last two releases
-        id: check_changes
-        run: |
-          CHANGED=$(git diff --name-only ${{ steps.release_tags.outputs.second_last_tag }} ${{ steps.release_tags.outputs.last_tag }} -- home_automations/)
-          if [ -n "$CHANGED" ]; then
-            echo "Changes detected in home_automations between the last two releases."
-            echo "::set-output name=changed::true"
-          else
-            echo "No changes detected in home_automations between the last two releases."
-            echo "::set-output name=changed::false"
-          fi
-
       - name: Login
-        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
@@ -94,7 +70,6 @@ jobs:
           password: ${{ secrets.PAT }}
 
       - name: Extract metadata
-        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         id: meta
         uses: docker/metadata-action@v4
         with:
@@ -104,7 +79,6 @@ jobs:
             latest
 
       - name: Build and publish docker image
-        if: steps.check_changes.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/build-push-action@v4
         with:
           context: .
